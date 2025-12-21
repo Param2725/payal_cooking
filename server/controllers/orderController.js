@@ -22,15 +22,36 @@ const createOrder = async (req, res) => {
     // Cutoff validation
     const now = new Date();
     const delivery = new Date(deliveryDate);
-    const diffInHours = (delivery - now) / 1000 / 60 / 60;
 
-    if (type === 'single') {
-        if (diffInHours < 12) {
-            return res.status(400).json({ message: 'Single day orders must be placed at least 12 hours in advance.' });
-        }
-    } else if (type === 'event') {
+    // Check for Event orders (48 hours)
+    if (type === 'event') {
+        const diffInHours = (delivery - now) / 1000 / 60 / 60;
         if (diffInHours < 48) {
             return res.status(400).json({ message: 'Event orders must be placed at least 48 hours in advance.' });
+        }
+    }
+    // Check for Single Tiffin orders (12 hours based on Meal Time)
+    else if (type === 'single') {
+        // We need to check each item's meal time if available, or assume based on something else.
+        // Since deliveryDate is just the date, we need to combine it with meal times.
+        // Lunch: 12:00 PM, Dinner: 08:00 PM (20:00)
+
+        for (const item of items) {
+            if (item.mealTime) {
+                const itemTargetTime = new Date(delivery);
+                if (item.mealTime === 'Lunch') {
+                    itemTargetTime.setHours(12, 0, 0, 0);
+                } else if (item.mealTime === 'Dinner') {
+                    itemTargetTime.setHours(20, 0, 0, 0);
+                }
+
+                const diffInHours = (itemTargetTime - now) / 1000 / 60 / 60;
+                if (diffInHours < 12) {
+                    return res.status(400).json({
+                        message: `${item.mealTime} orders must be placed at least 12 hours in advance. Deadline passed for ${itemTargetTime.toLocaleDateString()}.`
+                    });
+                }
+            }
         }
     }
 
@@ -44,7 +65,7 @@ const createOrder = async (req, res) => {
             deliveryAddress,
             paymentId: paymentId || 'DUMMY_PAYMENT_ID',
             paymentStatus: 'Paid', // Assuming immediate payment for now
-            status: 'Confirmed', // Auto-confirm since payment is done
+            status: 'Pending', // Wait for Admin approval
         });
 
         const createdOrder = await order.save();

@@ -86,8 +86,27 @@ const updateMenu = async (req, res) => {
     }
 };
 
+// @desc    Delete a menu
+// @route   DELETE /api/menu/:id
+// @access  Private/Admin
+const deleteMenu = async (req, res) => {
+    try {
+        const menu = await Menu.findById(req.params.id);
+
+        if (menu) {
+            await menu.deleteOne();
+            res.json({ message: 'Menu removed' });
+        } else {
+            res.status(404).json({ message: 'Menu not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     getMenu,
     createMenu,
     updateMenu,
+    deleteMenu,
 };

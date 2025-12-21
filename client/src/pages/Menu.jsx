@@ -104,11 +104,31 @@ const Menu = () => {
 
     const sortedMenu = [...weeklyMenu].sort((a, b) => getDayIndex(a.date) - getDayIndex(b.date));
 
+    const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+
     const handleOrderNow = () => {
+        setOrderDate(new Date().toISOString().split('T')[0]); // Reset to today
         setIsModalOpen(true);
     };
 
     const handleAddToCart = () => {
+        // 12-Hour Validation
+        const now = new Date();
+        const targetDate = new Date(orderDate);
+
+        if (orderMealTime === 'Lunch') {
+            targetDate.setHours(12, 0, 0, 0);
+        } else if (orderMealTime === 'Dinner') {
+            targetDate.setHours(20, 0, 0, 0);
+        }
+
+        const diffInHours = (targetDate - now) / 1000 / 60 / 60;
+
+        if (diffInHours < 12) {
+            showNotification(`Order window closed. Lunch/Dinner must be ordered 12 hours in advance.`, 'error');
+            return;
+        }
+
         const price = PLAN_PRICES[selectedPlan];
         const totalAmount = (price * orderQuantity) + 100; // 100 Delivery Charge
 
@@ -122,7 +142,8 @@ const Menu = () => {
             price: price,
             deliveryCharge: 100,
             totalAmount: totalAmount,
-            menuItems: todaysMenu.items[orderMealTime.toLowerCase()]
+            menuItems: todaysMenu.items[orderMealTime.toLowerCase()],
+            deliveryDate: orderDate // Pass selected date
         };
 
         addToCart(orderItem);
@@ -282,7 +303,7 @@ const Menu = () => {
                                     <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                                         <div className="flex justify-between items-center mb-4">
                                             <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                                Order Today's Tiffin ({selectedPlan})
+                                                Order Tiffin ({selectedPlan})
                                             </h3>
                                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-500">
                                                 <X className="h-6 w-6" />
@@ -290,6 +311,17 @@ const Menu = () => {
                                         </div>
 
                                         <div className="mt-4 space-y-6">
+                                            {/* Date Selection */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={orderDate}
+                                                    min={new Date().toISOString().split('T')[0]}
+                                                    onChange={(e) => setOrderDate(e.target.value)}
+                                                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                                />
+                                            </div>
                                             {/* Meal Time Selection */}
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Meal</label>
@@ -318,6 +350,32 @@ const Menu = () => {
                                                     </label>
                                                 </div>
                                             </div>
+
+                                            {/* 12-Hour Window Warning */}
+                                            {(() => {
+                                                const now = new Date();
+                                                const targetDate = new Date(orderDate);
+                                                if (orderMealTime === 'Lunch') targetDate.setHours(12, 0, 0, 0);
+                                                else if (orderMealTime === 'Dinner') targetDate.setHours(20, 0, 0, 0);
+
+                                                const diffInHours = (targetDate - now) / 1000 / 60 / 60;
+
+                                                if (diffInHours < 12) {
+                                                    return (
+                                                        <div className="bg-red-50 border-l-4 border-red-400 p-4">
+                                                            <div className="flex">
+                                                                <div className="ml-3">
+                                                                    <p className="text-sm text-red-700">
+                                                                        Order window closed. {orderMealTime} must be ordered 12 hours in advance.
+                                                                        Please select a future date.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
 
                                             {/* Quantity Selection */}
                                             <div>

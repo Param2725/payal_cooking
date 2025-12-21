@@ -292,6 +292,49 @@ const getMySubscription = async (req, res) => {
     }
 };
 
+// @desc    Get all subscriptions (Admin)
+// @route   GET /api/subscriptions
+// @access  Private/Admin
+const getAllSubscriptions = async (req, res) => {
+    try {
+        const subscriptions = await Subscription.find({})
+            .populate('user', 'name email')
+            .populate('plan', 'name price duration')
+            .sort({ createdAt: -1 });
+        res.json(subscriptions);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Cancel Subscription (Admin)
+// @route   PUT /api/subscriptions/:id/cancel
+// @access  Private/Admin
+const adminCancelSubscription = async (req, res) => {
+    try {
+        const subscription = await Subscription.findById(req.params.id);
+
+        if (!subscription) {
+            return res.status(404).json({ message: 'Subscription not found' });
+        }
+
+        subscription.status = 'Cancelled';
+        await subscription.save();
+
+        // Update user's current subscription if it matches
+        const user = await User.findById(subscription.user);
+        if (user && user.currentSubscription && user.currentSubscription.toString() === subscription._id.toString()) {
+            user.currentSubscription = null;
+            await user.save();
+        }
+
+        res.json({ message: 'Subscription cancelled by admin', subscription });
+    } catch (error) {
+        console.error('Error cancelling subscription:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     buySubscription,
     verifySubscriptionPayment,
@@ -299,4 +342,6 @@ module.exports = {
     renewSubscription,
     verifyRenewal,
     getMySubscription,
+    getAllSubscriptions,
+    adminCancelSubscription
 };

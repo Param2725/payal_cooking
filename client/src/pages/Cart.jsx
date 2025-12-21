@@ -73,25 +73,8 @@ const Cart = () => {
                         );
 
                         // 4. Create Database Order
-                        // For now, we'll create separate orders for each item type if needed, 
-                        // or just one big order. The backend expects 'items' array.
-                        // Let's map cart items to the structure backend expects.
-                        // Note: Backend might need adjustment if we mix types, but let's assume 'single' for mixed or handle 'event' separately.
-                        // Actually, if we have an event order, it's best to process it as type 'event'.
-                        // If we have mixed items, we might need to split orders or handle mixed types.
-                        // For simplicity, let's assume the cart contains either normal items OR event items, or we treat them all as one order.
-                        // But 'type' is required in Order model.
-                        // Let's determine type based on content.
-
                         const hasEvent = cartItems.some(item => item.type === 'event');
                         const orderType = hasEvent ? 'event' : 'single';
-
-                        // If it's an event order, we might need to restructure items slightly for the backend
-                        // or just pass them as is if schema allows.
-                        // The Order schema has `items: [{ name, quantity, price }]`.
-                        // Event items in cart have `items: [subItems]`.
-                        // We should probably flatten or stringify event details for the 'name' field if schema is rigid,
-                        // or just pass the main event item as one item.
 
                         const dbOrderItems = cartItems.map(item => {
                             if (item.type === 'event') {
@@ -106,7 +89,8 @@ const Cart = () => {
                                     name: item.name,
                                     quantity: item.quantity,
                                     price: item.totalAmount,
-                                    selectedItems: item.menuItems // Reuse selectedItems for menu details
+                                    selectedItems: item.menuItems,
+                                    mealTime: item.mealTime
                                 };
                             } else {
                                 return {
@@ -117,14 +101,15 @@ const Cart = () => {
                             }
                         });
 
-                        const deliveryDate = new Date();
-                        if (orderType === 'event') {
-                            deliveryDate.setDate(deliveryDate.getDate() + 3); // 3 days in advance for events
+                        let deliveryDate = new Date();
+                        const itemWithDate = cartItems.find(item => item.deliveryDate);
+                        if (itemWithDate) {
+                            deliveryDate = new Date(itemWithDate.deliveryDate);
                         } else {
-                            deliveryDate.setDate(deliveryDate.getDate() + 1); // 1 day in advance for normal orders
+                            deliveryDate.setDate(deliveryDate.getDate() + 1);
                         }
 
-                        const orderData = {
+                        const finalOrderData = {
                             items: dbOrderItems,
                             totalAmount: totalAmount,
                             type: orderType,
@@ -134,7 +119,7 @@ const Cart = () => {
                             paymentStatus: 'Paid'
                         };
 
-                        await axios.post('http://localhost:5000/api/orders', orderData, config);
+                        await axios.post('http://localhost:5000/api/orders', finalOrderData, config);
 
                         clearCart();
                         showNotification('Order placed successfully!', 'success');
@@ -244,7 +229,7 @@ const Cart = () => {
                                         )}
 
                                         <button
-                                            onClick={() => removeFromCart(item.id || index)} // Use index for event items if no ID
+                                            onClick={() => removeFromCart(item.id || index)}
                                             className="ml-4 text-red-600 hover:text-red-800"
                                         >
                                             <Trash2 className="h-5 w-5" />

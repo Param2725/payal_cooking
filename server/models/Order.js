@@ -6,7 +6,8 @@ const orderSchema = mongoose.Schema({
         name: String,
         quantity: Number,
         price: Number,
-        selectedItems: [{ type: String }] // Array of strings for event item names
+        selectedItems: [{ type: String }], // Array of strings for event item names
+        mealTime: { type: String, enum: ['Lunch', 'Dinner'] }
     }],
     totalAmount: { type: Number, required: true },
     status: { type: String, enum: ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'], default: 'Pending' },

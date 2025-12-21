@@ -22,6 +22,7 @@ app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/complaints', require('./routes/complaintRoutes'));
 app.use('/api/event-items', require('./routes/eventItemRoutes'));
+app.use('/api/coupons', require('./routes/couponRoutes'));
 
 app.get('/', (req, res) => {
     res.send('API is running...');

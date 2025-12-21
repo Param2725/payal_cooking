@@ -47,7 +47,26 @@ const EventCatering = () => {
         return (calculateTotalPerPlate() * guestCount) + 200; // 200 Delivery Charge
     };
 
+    const [eventDate, setEventDate] = useState('');
+
     const handleAddToCart = () => {
+        if (!eventDate) {
+            showNotification('Please select an event date.', 'error');
+            return;
+        }
+
+        // 48-Hour Validation
+        const now = new Date();
+        const targetDate = new Date(eventDate);
+        targetDate.setHours(0, 0, 0, 0); // Start of the event day
+
+        const diffInHours = (targetDate - now) / 1000 / 60 / 60;
+
+        if (diffInHours < 48) {
+            showNotification('Event orders must be placed at least 48 hours in advance.', 'error');
+            return;
+        }
+
         if (guestCount < 20 || guestCount > 50) {
             showNotification('Guest count must be between 20 and 50.', 'error');
             return;
@@ -58,12 +77,14 @@ const EventCatering = () => {
         }
 
         const eventOrder = {
+            id: `event_${Date.now()}`, // Unique ID for cart operations
             type: 'event',
             items: selectedItems,
             guestCount: parseInt(guestCount),
             pricePerPlate: calculateTotalPerPlate(),
             totalAmount: calculateGrandTotal(),
-            deliveryCharge: 200
+            deliveryCharge: 200,
+            deliveryDate: eventDate // Pass selected date
         };
 
         // Add to cart via Context
@@ -127,6 +148,17 @@ const EventCatering = () => {
                             <h3 className="text-lg font-bold text-gray-900 mb-4">Order Summary</h3>
 
                             <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Event Date
+                                </label>
+                                <input
+                                    type="date"
+                                    min={new Date().toISOString().split('T')[0]}
+                                    value={eventDate}
+                                    onChange={(e) => setEventDate(e.target.value)}
+                                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm mb-4"
+                                />
+
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Guest Count (20 - 50)
                                 </label>
