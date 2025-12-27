@@ -44,6 +44,9 @@ const Navbar = () => {
                         </Link>
                         {user ? (
                             <div className="ml-4 flex items-center space-x-4">
+                                <Link to="/profile" className="p-2 text-gray-400 hover:text-gray-500" title="My Profile">
+                                    <User className="h-6 w-6" />
+                                </Link>
                                 <Link to="/orders" className="p-2 text-gray-400 hover:text-gray-500" title="My Orders">
                                     <ClipboardList className="h-6 w-6" />
                                 </Link>

@@ -12,7 +12,10 @@ const createOrder = async (req, res) => {
         type,
         deliveryDate,
         deliveryAddress,
+
         paymentId,
+        discountAmount,
+        couponCode
     } = req.body;
 
     if (!items || items.length === 0) {
@@ -66,6 +69,8 @@ const createOrder = async (req, res) => {
             paymentId: paymentId || 'DUMMY_PAYMENT_ID',
             paymentStatus: 'Paid', // Assuming immediate payment for now
             status: 'Pending', // Wait for Admin approval
+            discountAmount: discountAmount || 0,
+            couponCode: couponCode || null
         });
 
         const createdOrder = await order.save();
@@ -154,8 +159,6 @@ const getOrders = async (req, res) => {
 const createRazorpayOrder = async (req, res) => {
     const { amount } = req.body;
 
-    console.log('Creating Razorpay order for amount:', amount);
-
     try {
         const options = {
             amount: Math.round(amount * 100), // Amount in paise, rounded to nearest integer
@@ -190,20 +193,12 @@ const verifyPayment = async (req, res) => {
     try {
         const body = razorpay_order_id + '|' + razorpay_payment_id;
 
-        console.log('Verifying Payment:');
-        console.log('Order ID:', razorpay_order_id);
-        console.log('Payment ID:', razorpay_payment_id);
-        console.log('Received Signature:', razorpay_signature);
-
         const expectedSignature = crypto
             .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(body.toString())
             .digest('hex');
 
-        console.log('Expected Signature:', expectedSignature);
-
         if (expectedSignature !== razorpay_signature) {
-            console.log('Signature Mismatch!');
             return res.status(400).json({ message: 'Invalid payment signature' });
         }
 

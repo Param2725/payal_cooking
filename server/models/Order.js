@@ -21,6 +21,8 @@ const orderSchema = mongoose.Schema({
     paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Failed'], default: 'Pending' },
     paymentId: { type: String },
     subscription: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
+    discountAmount: { type: Number, default: 0 },
+    couponCode: { type: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

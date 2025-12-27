@@ -651,7 +651,13 @@ const AdminDashboard = () => {
                                                     </div>
                                                 </div>
                                                 <div className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                                                    <strong>Items:</strong> {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                                                    <p><strong>Items:</strong> {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</p>
+                                                    {order.deliveryAddress && (
+                                                        <p className="mt-1">
+                                                            <strong>Delivery Address:</strong> {order.deliveryAddress.street}, {order.deliveryAddress.city}, {order.deliveryAddress.zip}
+                                                            {order.deliveryAddress.label && <span className="ml-2 text-xs bg-gray-200 px-1 rounded">{order.deliveryAddress.label}</span>}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 

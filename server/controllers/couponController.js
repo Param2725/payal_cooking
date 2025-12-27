@@ -57,8 +57,61 @@ const deleteCoupon = async (req, res) => {
     }
 };
 
+// @desc    Get active coupons for users
+// @route   GET /api/coupons/active
+// @access  Private
+const getActiveCoupons = async (req, res) => {
+    try {
+        const currentDate = new Date();
+        const coupons = await Coupon.find({
+            isActive: true,
+            expiryDate: { $gte: currentDate }
+        }).select('code discountPercentage expiryDate description'); // Select only necessary fields
+
+        res.json(coupons);
+    } catch (error) {
+        console.error('getActiveCoupons error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Validate a coupon
+// @route   POST /api/coupons/validate
+// @access  Private
+const validateCoupon = async (req, res) => {
+    const { code } = req.body;
+
+    try {
+        const coupon = await Coupon.findOne({ code: code.toUpperCase() });
+
+        if (!coupon) {
+            return res.status(404).json({ message: 'Invalid coupon code' });
+        }
+
+        if (!coupon.isActive) {
+            return res.status(400).json({ message: 'This coupon is no longer active' });
+        }
+
+        if (new Date() > new Date(coupon.expiryDate)) {
+            return res.status(400).json({ message: 'This coupon has expired' });
+        }
+
+        res.json({
+            code: coupon.code,
+            discountPercentage: coupon.discountPercentage,
+            message: 'Coupon applied successfully'
+        });
+
+    } catch (error) {
+        console.error('validateCoupon error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     createCoupon,
     getCoupons,
-    deleteCoupon
+    deleteCoupon,
+    getActiveCoupons,
+    validateCoupon
 };

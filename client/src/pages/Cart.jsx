@@ -4,7 +4,7 @@ import CartContext from '../context/CartContext';
 import AuthContext from '../context/AuthContext';
 import NotificationContext from '../context/NotificationContext';
 import axios from 'axios';
-import { Trash2, Plus, Minus } from 'lucide-react';
+import { Trash2, Plus, Minus, Tag, X, MapPin, CheckCircle } from 'lucide-react';
 
 const Cart = () => {
     const { cartItems, removeFromCart, updateQuantity, getCartTotal, clearCart } = useContext(CartContext);
@@ -14,6 +14,22 @@ const Cart = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Coupon State
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState(null);
+    const [availableCoupons, setAvailableCoupons] = useState([]);
+    const [couponError, setCouponError] = useState('');
+    const [couponSuccess, setCouponSuccess] = useState('');
+
+    // Address State
+    const [selectedAddressIndex, setSelectedAddressIndex] = useState(-1); // -1 for custom/new, >=0 for saved
+    const [deliveryAddress, setDeliveryAddress] = useState({
+        street: '',
+        city: '',
+        zip: ''
+    });
+    const [isCustomAddress, setIsCustomAddress] = useState(false);
+
     useEffect(() => {
         // Load Razorpay script
         const script = document.createElement('script');
@@ -21,10 +37,90 @@ const Cart = () => {
         script.async = true;
         document.body.appendChild(script);
 
+        // Fetch active coupons
+        fetchCoupons();
+
         return () => {
             document.body.removeChild(script);
         };
     }, []);
+
+    useEffect(() => {
+        if (user && user.addresses && user.addresses.length > 0) {
+            // Default to the first address
+            setSelectedAddressIndex(0);
+            setDeliveryAddress(user.addresses[0]);
+        } else {
+            setIsCustomAddress(true);
+        }
+    }, [user]);
+
+    const fetchCoupons = async () => {
+        try {
+            const config = {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+            };
+            const { data } = await axios.get('http://localhost:5000/api/coupons/active', config);
+            setAvailableCoupons(data);
+        } catch (error) {
+            console.error('Error fetching coupons:', error);
+        }
+    };
+
+    const handleApplyCoupon = async () => {
+        if (!couponCode.trim()) return;
+        setCouponError('');
+        setCouponSuccess('');
+
+        try {
+            const config = {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+            };
+            const { data } = await axios.post(
+                'http://localhost:5000/api/coupons/validate',
+                { code: couponCode },
+                config
+            );
+
+            setAppliedCoupon(data);
+            setCouponSuccess(`Coupon '${data.code}' applied! You save ${data.discountPercentage}%`);
+            setCouponCode('');
+        } catch (error) {
+            setCouponError(error.response?.data?.message || 'Invalid coupon');
+            setAppliedCoupon(null);
+        }
+    };
+
+    const handleRemoveCoupon = () => {
+        setAppliedCoupon(null);
+        setCouponSuccess('');
+        setCouponError('');
+        setCouponCode('');
+    };
+
+    const calculateDiscount = (subtotal) => {
+        if (!appliedCoupon) return 0;
+        return Math.round((subtotal * appliedCoupon.discountPercentage) / 100);
+    };
+
+    const handleAddressSelection = (index) => {
+        setSelectedAddressIndex(index);
+        if (index === -1) {
+            setIsCustomAddress(true);
+            setDeliveryAddress({ street: '', city: '', zip: '' });
+        } else {
+            setIsCustomAddress(false);
+            setDeliveryAddress(user.addresses[index]);
+        }
+    };
+
+    const handleCustomAddressChange = (e) => {
+        setDeliveryAddress({ ...deliveryAddress, [e.target.name]: e.target.value });
+    };
 
     const handleCheckout = async () => {
         if (!user) {
@@ -32,11 +128,20 @@ const Cart = () => {
             return;
         }
 
+        if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.zip) {
+            setError('Please provide a complete delivery address.');
+            return;
+        }
+
         setLoading(true);
         setError('');
 
         try {
-            const totalAmount = getCartTotal();
+            const total = getCartTotal();
+            const delivery = cartItems.reduce((acc, item) => acc + (item.deliveryCharge || 0), 0);
+            const subtotal = total - delivery;
+            const discountAmount = calculateDiscount(subtotal);
+            const finalTotal = total - discountAmount;
 
             // 1. Create Razorpay Order
             const config = {
@@ -47,7 +152,7 @@ const Cart = () => {
 
             const { data: orderData } = await axios.post(
                 'http://localhost:5000/api/orders/razorpay',
-                { amount: totalAmount },
+                { amount: finalTotal },
                 config
             );
 
@@ -111,12 +216,14 @@ const Cart = () => {
 
                         const finalOrderData = {
                             items: dbOrderItems,
-                            totalAmount: totalAmount,
+                            totalAmount: finalTotal,
                             type: orderType,
                             deliveryDate: deliveryDate,
-                            deliveryAddress: user.address || { street: '123 Main St', city: 'City', zip: '12345' },
+                            deliveryAddress: deliveryAddress, // Use the selected address
                             paymentId: response.razorpay_payment_id,
-                            paymentStatus: 'Paid'
+                            paymentStatus: 'Paid',
+                            discountAmount: discountAmount,
+                            couponCode: appliedCoupon ? appliedCoupon.code : null
                         };
 
                         await axios.post('http://localhost:5000/api/orders', finalOrderData, config);
@@ -173,7 +280,7 @@ const Cart = () => {
 
                 <div className="flex flex-col lg:flex-row gap-12">
                     <div className="lg:w-2/3">
-                        <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
+                        <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200 mb-6">
                             <ul className="divide-y divide-gray-200">
                                 {cartItems.map((item, index) => (
                                     <li key={index} className="p-6 flex items-center justify-between">
@@ -238,15 +345,145 @@ const Cart = () => {
                                 ))}
                             </ul>
                         </div>
+
+                        {/* Available Coupons Section */}
+                        {availableCoupons.length > 0 && (
+                            <div className="bg-white shadow sm:rounded-lg border border-gray-200 p-6 mb-6">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                                    <Tag className="h-5 w-5 mr-2 text-orange-600" />
+                                    Available Coupons
+                                </h3>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    {availableCoupons.map((coupon) => (
+                                        <div
+                                            key={coupon._id}
+                                            className="border border-dashed border-orange-300 bg-orange-50 rounded-lg p-4 cursor-pointer hover:bg-orange-100 transition-colors"
+                                            onClick={() => setCouponCode(coupon.code)}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <span className="font-bold text-orange-700">{coupon.code}</span>
+                                                    <p className="text-sm text-gray-600 mt-1">{coupon.description || `${coupon.discountPercentage}% Off`}</p>
+                                                </div>
+                                                <span className="bg-white text-orange-600 text-xs font-bold px-2 py-1 rounded border border-orange-200">
+                                                    {coupon.discountPercentage}%
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-2">Expires: {new Date(coupon.expiryDate).toLocaleDateString()}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="lg:w-1/3">
                         <div className="bg-gray-50 p-6 rounded-lg shadow-sm border border-gray-200">
                             <h3 className="text-lg font-medium text-gray-900 mb-4">Order Summary</h3>
+
+                            {/* Delivery Address Section */}
+                            <div className="mb-6 border-b border-gray-200 pb-6">
+                                <h4 className="text-sm font-medium text-gray-900 flex items-center mb-3">
+                                    <MapPin className="h-4 w-4 mr-1 text-gray-500" />
+                                    Delivery Address
+                                </h4>
+
+                                <div className="space-y-2">
+                                    {user?.addresses?.map((addr, index) => (
+                                        <div
+                                            key={index}
+                                            onClick={() => handleAddressSelection(index)}
+                                            className={`p-3 rounded-md border cursor-pointer flex items-start ${selectedAddressIndex === index ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'}`}
+                                        >
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-gray-900">{addr.label || `Address ${index + 1}`}</p>
+                                                <p className="text-xs text-gray-500">{addr.street}, {addr.city}, {addr.zip}</p>
+                                            </div>
+                                            {selectedAddressIndex === index && <CheckCircle className="h-5 w-5 text-orange-600" />}
+                                        </div>
+                                    ))}
+
+                                    <div
+                                        onClick={() => handleAddressSelection(-1)}
+                                        className={`p-3 rounded-md border cursor-pointer flex items-start ${selectedAddressIndex === -1 ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'}`}
+                                    >
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-gray-900">Use a different address</p>
+                                        </div>
+                                        {selectedAddressIndex === -1 && <CheckCircle className="h-5 w-5 text-orange-600" />}
+                                    </div>
+                                </div>
+
+                                {isCustomAddress && (
+                                    <div className="mt-4 space-y-2 animate-fadeIn">
+                                        <input
+                                            type="text"
+                                            name="street"
+                                            value={deliveryAddress.street}
+                                            onChange={handleCustomAddressChange}
+                                            placeholder="Street Address"
+                                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                        />
+                                        <div className="flex space-x-2">
+                                            <input
+                                                type="text"
+                                                name="city"
+                                                value={deliveryAddress.city}
+                                                onChange={handleCustomAddressChange}
+                                                placeholder="City"
+                                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                            />
+                                            <input
+                                                type="text"
+                                                name="zip"
+                                                value={deliveryAddress.zip}
+                                                onChange={handleCustomAddressChange}
+                                                placeholder="ZIP"
+                                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Coupon Input */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Have a coupon?</label>
+                                <div className="flex space-x-2">
+                                    <input
+                                        type="text"
+                                        value={couponCode}
+                                        onChange={(e) => setCouponCode(e.target.value)}
+                                        placeholder="Enter code"
+                                        className="flex-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                        disabled={!!appliedCoupon}
+                                    />
+                                    {appliedCoupon ? (
+                                        <button
+                                            onClick={handleRemoveCoupon}
+                                            className="bg-red-100 text-red-700 px-3 py-2 rounded-md hover:bg-red-200"
+                                        >
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleApplyCoupon}
+                                            className="bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm font-medium"
+                                        >
+                                            Apply
+                                        </button>
+                                    )}
+                                </div>
+                                {couponError && <p className="mt-2 text-sm text-red-600">{couponError}</p>}
+                                {couponSuccess && <p className="mt-2 text-sm text-green-600">{couponSuccess}</p>}
+                            </div>
+
                             {(() => {
                                 const total = getCartTotal();
                                 const delivery = cartItems.reduce((acc, item) => acc + (item.deliveryCharge || 0), 0);
                                 const subtotal = total - delivery;
+                                const discountAmount = calculateDiscount(subtotal);
+                                const finalTotal = total - discountAmount;
 
                                 return (
                                     <>
@@ -254,15 +491,21 @@ const Cart = () => {
                                             <span className="text-gray-600">Subtotal</span>
                                             <span className="font-medium text-gray-900">₹{subtotal}</span>
                                         </div>
-                                        <div className="flex justify-between mb-4">
+                                        <div className="flex justify-between mb-2">
                                             <span className="text-gray-600">Delivery</span>
                                             <span className="font-medium text-green-600">
                                                 {delivery > 0 ? `₹${delivery}` : 'Free'}
                                             </span>
                                         </div>
+                                        {discountAmount > 0 && (
+                                            <div className="flex justify-between mb-4 text-green-600">
+                                                <span>Discount ({appliedCoupon.code})</span>
+                                                <span>-₹{discountAmount}</span>
+                                            </div>
+                                        )}
                                         <div className="border-t border-gray-200 pt-4 flex justify-between mb-6">
                                             <span className="text-xl font-bold text-gray-900">Total</span>
-                                            <span className="text-xl font-bold text-gray-900">₹{total}</span>
+                                            <span className="text-xl font-bold text-gray-900">₹{finalTotal}</span>
                                         </div>
                                     </>
                                 );

@@ -3,7 +3,9 @@ const router = express.Router();
 const {
     createCoupon,
     getCoupons,
-    deleteCoupon
+    deleteCoupon,
+    getActiveCoupons,
+    validateCoupon
 } = require('../controllers/couponController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
@@ -13,5 +15,8 @@ router.route('/')
 
 router.route('/:id')
     .delete(protect, admin, deleteCoupon);
+
+router.get('/active', protect, getActiveCoupons);
+router.post('/validate', protect, validateCoupon);
 
 module.exports = router;

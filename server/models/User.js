@@ -7,11 +7,12 @@ const userSchema = mongoose.Schema({
     password: { type: String, required: true },
     role: { type: String, enum: ['user', 'admin', 'employee'], default: 'user' },
     phone: { type: String },
-    address: {
-        street: String,
-        city: String,
-        zip: String,
-    },
+    addresses: [{
+        label: { type: String }, // e.g., 'Home', 'Work', 'Lunch', 'Dinner'
+        street: { type: String },
+        city: { type: String },
+        zip: { type: String },
+    }],
     currentSubscription: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Subscription',
